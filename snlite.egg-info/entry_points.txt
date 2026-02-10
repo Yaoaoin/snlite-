@@ -1,2 +1,2 @@
 [console_scripts]
-snlite = snlite.main:run
+snlite = snlite.cli:run

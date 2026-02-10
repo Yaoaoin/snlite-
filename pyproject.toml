@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "snlite"
-version = "0.5.2"
+version = "0.5.3.1"
 description = "SNLite - lightweight local GenAI chat framework with browser GUI"
 requires-python = ">=3.10"
 dependencies = [
@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-snlite = "snlite.main:run"
+snlite = "snlite.cli:run"
 
 [tool.setuptools]
 include-package-data = true

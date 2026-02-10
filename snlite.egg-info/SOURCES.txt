@@ -1,6 +1,8 @@
 pyproject.toml
 snlite/__init__.py
+snlite/cli.py
 snlite/main.py
+snlite/ollama_manager.py
 snlite/registry.py
 snlite/store.py
 snlite.egg-info/PKG-INFO
