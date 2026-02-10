@@ -1,3 +1,9 @@
+/* 直接使用你当前 v0.5.3.1 的 app.js（无需改动）
+   ——为了保持“只改 UI”，这里不动任何逻辑。
+   如果你希望我把这里也升级成 v6.0 的小增强（比如：workspace 自动折叠按钮/移动端 sidebar drawer），
+   你再说，我再给你 v6.0 的 JS 版本。
+*/
+
 const $ = (id) => document.getElementById(id);
 
 let state = {

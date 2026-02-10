@@ -138,6 +138,14 @@ snlite/
 
 ### Changelog
 
+v6.0.0
+
+Change
+
+- UI Major rework
+
+- early works done for 6.0.1 & 6.0.2
+
 v0.5.3(.1)
 
 Fixed
