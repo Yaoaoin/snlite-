@@ -1,0 +1,2 @@
+[console_scripts]
+snlite = snlite.main:run

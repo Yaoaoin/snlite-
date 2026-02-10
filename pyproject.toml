@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "snlite"
+version = "0.5.0"
+description = "SNLite - lightweight local GenAI chat framework with browser GUI"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.23",
+  "httpx>=0.25",
+  "python-docx>=1.1.0",
+  "pypdf>=4.2.0",
+]
+
+[project.scripts]
+snlite = "snlite.main:run"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["snlite*"]
+exclude = ["data*", "models*", "configs*", "tests*"]
+
+[tool.setuptools.package-data]
+snlite = ["web/*"]

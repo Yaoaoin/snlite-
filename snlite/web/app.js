@@ -1,0 +1,886 @@
+const $ = (id) => document.getElementById(id);
+
+let state = {
+  providers: [],
+  loaded: null,
+  currentSessionId: null,
+  streaming: false,
+  requestId: null,
+};
+
+// image attachment
+let attachedImage = { name: null, b64: null };
+
+// file attachments (v0.5.0)
+let attachedFiles = []; // {name, mime, size, b64}
+
+/* ---------------------------
+   Safe Markdown render (from v0.4.2)
+---------------------------- */
+function escapeHtml(s) {
+  return (s || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderInlineMd(s) {
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer noopener">$1</a>');
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  return s;
+}
+
+function renderMarkdownSafe(text) {
+  const raw = (text || "");
+  if (!raw) return '<div class="md"></div>';
+
+  const parts = raw.split(/```/);
+  let html = '<div class="md">';
+
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 1) {
+      const codeRaw = parts[i];
+      let code = codeRaw;
+      const firstNewline = codeRaw.indexOf("\n");
+      if (firstNewline !== -1) {
+        const maybeLang = codeRaw.slice(0, firstNewline).trim();
+        if (maybeLang && !maybeLang.includes(" ")) {
+          code = codeRaw.slice(firstNewline + 1);
+        }
+      }
+      html += `<pre><code>${escapeHtml(code)}</code></pre>`;
+      continue;
+    }
+
+    const chunk = parts[i];
+    const lines = chunk.split(/\r?\n/);
+
+    let inUl = false;
+    let inOl = false;
+
+    const closeLists = () => {
+      if (inUl) { html += "</ul>"; inUl = false; }
+      if (inOl) { html += "</ol>"; inOl = false; }
+    };
+
+    const flushParagraph = (buf) => {
+      if (!buf.length) return;
+      const joined = buf.join("<br>");
+      html += `<p>${joined}</p>`;
+      buf.length = 0;
+    };
+
+    let paraBuf = [];
+
+    for (let ln of lines) {
+      const line = ln.replace(/\t/g, "    ");
+      const trimmed = line.trim();
+
+      if (!trimmed) {
+        flushParagraph(paraBuf);
+        closeLists();
+        continue;
+      }
+
+      const mH = trimmed.match(/^(#{1,6})\s+(.*)$/);
+      if (mH) {
+        flushParagraph(paraBuf);
+        closeLists();
+        const level = mH[1].length;
+        const content = renderInlineMd(escapeHtml(mH[2].trim()));
+        html += `<h${level}>${content}</h${level}>`;
+        continue;
+      }
+
+      const mOl = trimmed.match(/^(\d+)\.\s+(.*)$/);
+      if (mOl) {
+        flushParagraph(paraBuf);
+        if (inUl) { html += "</ul>"; inUl = false; }
+        if (!inOl) { html += "<ol>"; inOl = true; }
+        const item = renderInlineMd(escapeHtml(mOl[2]));
+        html += `<li>${item}</li>`;
+        continue;
+      }
+
+      const mUl = trimmed.match(/^[-*]\s+(.*)$/);
+      if (mUl) {
+        flushParagraph(paraBuf);
+        if (inOl) { html += "</ol>"; inOl = false; }
+        if (!inUl) { html += "<ul>"; inUl = true; }
+        const item = renderInlineMd(escapeHtml(mUl[1]));
+        html += `<li>${item}</li>`;
+        continue;
+      }
+
+      if (inUl || inOl) closeLists();
+
+      const rendered = renderInlineMd(escapeHtml(line));
+      paraBuf.push(rendered);
+    }
+
+    flushParagraph(paraBuf);
+    closeLists();
+  }
+
+  html += "</div>";
+  return html;
+}
+
+/* ---------------------------
+   Auto-scroll (v0.5.0)
+---------------------------- */
+let userScrolledUp = false;
+
+function isNearBottom(el, threshold = 140) {
+  return (el.scrollHeight - (el.scrollTop + el.clientHeight)) <= threshold;
+}
+
+function updateUserScrolledFlag() {
+  const el = $("chatScroll");
+  userScrolledUp = !isNearBottom(el);
+}
+
+function maybeAutoScroll(force = false) {
+  const el = $("chatScroll");
+  const enabled = $("autoScroll")?.checked;
+  if (!enabled) return;
+
+  if (force) {
+    el.scrollTop = el.scrollHeight;
+    return;
+  }
+  // only auto scroll when user hasn't scrolled up
+  if (!userScrolledUp) {
+    el.scrollTop = el.scrollHeight;
+  }
+}
+
+/* --------------------------- */
+
+function paramsFromUI() {
+  return {
+    temperature: parseFloat($("temperature").value),
+    top_p: parseFloat($("top_p").value),
+    num_predict: parseInt($("num_predict").value, 10),
+    repeat_penalty: parseFloat($("repeat_penalty").value),
+  };
+}
+
+function updateParamLabels() {
+  $("tempVal").textContent = $("temperature").value;
+  $("topPVal").textContent = $("top_p").value;
+}
+
+function setStage(text) {
+  $("stageBadge").textContent = text || "Idle";
+}
+
+async function apiGet(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function apiPost(url, body) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(body || {}),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function apiPatch(url, body) {
+  const r = await fetch(url, {
+    method: "PATCH",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(body || {}),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function apiDelete(url) {
+  const r = await fetch(url, { method: "DELETE" });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+function setModelStatus(text) {
+  $("modelStatus").textContent = text || "";
+}
+
+function setLoadedBadge() {
+  const b = $("loadedBadge");
+  if (!state.loaded) {
+    b.textContent = "No model";
+    b.style.color = "var(--muted)";
+    return;
+  }
+  b.textContent = `${state.loaded.provider} / ${state.loaded.model_id}`;
+  b.style.color = "var(--text)";
+}
+
+function isGptOssModelId(modelId) {
+  return (modelId || "").toLowerCase().includes("gpt-oss");
+}
+
+function syncThinkModeOptions() {
+  const sel = $("thinkMode");
+  const modelId = state.loaded?.model_id || $("modelSelect").value || "";
+  const isGpt = isGptOssModelId(modelId);
+
+  const opts = Array.from(sel.options);
+  for (const opt of opts) {
+    const v = opt.value;
+    const isLevel = (v === "low" || v === "medium" || v === "high");
+    const isBoolMode = (v === "on" || v === "off");
+    if (isGpt) {
+      if (isBoolMode) opt.disabled = true;
+      if (isLevel) opt.disabled = false;
+    } else {
+      if (isBoolMode) opt.disabled = false;
+      if (isLevel) opt.disabled = true;
+    }
+  }
+
+  if (sel.options[sel.selectedIndex]?.disabled) {
+    sel.value = "auto";
+  }
+}
+
+/* ---------- Message UI (v0.5.0) ---------- */
+function createMessageRow(role) {
+  const row = document.createElement("div");
+  row.className = `msg-row ${role}`;
+
+  const avatar = document.createElement("div");
+  avatar.className = `avatar ${role === "assistant" ? "ai" : ""}`;
+  avatar.textContent = role === "assistant" ? "AI" : "U";
+
+  const bubble = document.createElement("div");
+  bubble.className = `bubble ${role}`;
+
+  const roleLine = document.createElement("div");
+  roleLine.className = "role-line";
+
+  const chip = document.createElement("div");
+  chip.className = `role-chip ${role === "assistant" ? "ai" : "user"}`;
+  chip.textContent = role === "assistant" ? "Assistant" : "You";
+
+  roleLine.appendChild(chip);
+  bubble.appendChild(roleLine);
+
+  const content = document.createElement("div");
+  content.className = "content";
+  content.innerHTML = renderMarkdownSafe("");
+  bubble.appendChild(content);
+
+  if (role === "assistant") {
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+  } else {
+    row.appendChild(bubble);
+    row.appendChild(avatar);
+  }
+
+  $("messages").appendChild(row);
+  maybeAutoScroll(true);
+  return { row, bubble, contentEl: content };
+}
+
+function setMessageContent(contentEl, rawText) {
+  contentEl.innerHTML = renderMarkdownSafe(rawText);
+}
+
+/* ---------- Clear UI ---------- */
+function clearUI() {
+  $("messages").innerHTML = "";
+  maybeAutoScroll(true);
+}
+
+/* ---------- Workspace ---------- */
+function wsClear() {
+  $("wsText").textContent = "";
+}
+
+function wsShow(show) {
+  const ws = $("workspace");
+  if (show) ws.classList.remove("hidden");
+  else ws.classList.add("hidden");
+}
+
+/* ---------- Models ---------- */
+async function refreshModels() {
+  setModelStatus("Refreshing...");
+  const data = await apiGet("/api/models");
+  state.providers = data.providers;
+  state.loaded = data.state.loaded;
+  setLoadedBadge();
+
+  const providerSelect = $("providerSelect");
+  providerSelect.innerHTML = "";
+  for (const p of state.providers) {
+    const opt = document.createElement("option");
+    opt.value = p.name;
+    opt.textContent = p.name;
+    providerSelect.appendChild(opt);
+  }
+  if (state.providers.length) providerSelect.value = state.providers[0].name;
+
+  await refreshModelListForProvider(providerSelect.value);
+
+  const s = data.state.status;
+  if (s === "ready" && state.loaded) setModelStatus(`Ready: ${state.loaded.provider} / ${state.loaded.model_id}`);
+  else if (s === "idle") setModelStatus("Idle. Select a model and Load.");
+  else if (s === "loading") setModelStatus("Loading...");
+  else if (s === "error") setModelStatus(`Error: ${data.state.error || "unknown"}`);
+  else setModelStatus(s);
+
+  syncThinkModeOptions();
+}
+
+async function refreshModelListForProvider(providerName) {
+  const provider = state.providers.find(x => x.name === providerName);
+  const modelSelect = $("modelSelect");
+  modelSelect.innerHTML = "";
+  if (!provider || !provider.models || provider.models.length === 0) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "(no models found)";
+    modelSelect.appendChild(opt);
+    return;
+  }
+  for (const m of provider.models) {
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = m.name || m.id;
+    modelSelect.appendChild(opt);
+  }
+  syncThinkModeOptions();
+}
+
+async function loadModel() {
+  const provider = $("providerSelect").value;
+  const model_id = $("modelSelect").value;
+  if (!model_id) return;
+  setModelStatus("Loading...");
+  const data = await apiPost("/api/models/load", { provider, model_id, params: {} });
+  state.loaded = data.loaded;
+  setLoadedBadge();
+  setModelStatus(data.status === "ready" ? `Ready: ${state.loaded.provider} / ${state.loaded.model_id}` : data.status);
+  syncThinkModeOptions();
+}
+
+async function unloadModel() {
+  const data = await apiPost("/api/models/unload", {});
+  state.loaded = data.loaded;
+  setLoadedBadge();
+  setModelStatus("Unloaded.");
+  syncThinkModeOptions();
+}
+
+/* ---------- Sessions ---------- */
+async function refreshSessions() {
+  const items = await apiGet("/api/sessions");
+  const container = $("sessions");
+  container.innerHTML = "";
+  for (const s of items) {
+    const div = document.createElement("div");
+    div.className = "session-item" + (state.currentSessionId === s.id ? " active" : "");
+    div.textContent = s.title;
+    div.onclick = async () => {
+      state.currentSessionId = s.id;
+      await openSession(s.id);
+      await refreshSessions();
+    };
+    container.appendChild(div);
+  }
+  if (!state.currentSessionId && items.length) {
+    state.currentSessionId = items[0].id;
+    await openSession(items[0].id);
+    await refreshSessions();
+  }
+}
+
+async function newSession() {
+  const r = await apiPost("/api/sessions", { title: "New Chat" });
+  state.currentSessionId = r.id;
+  await openSession(r.id);
+  await refreshSessions();
+}
+
+async function renameSession() {
+  if (!state.currentSessionId) return;
+  const title = prompt("New title:");
+  if (!title) return;
+  await apiPatch(`/api/sessions/${state.currentSessionId}`, { title });
+  await refreshSessions();
+}
+
+async function deleteSession() {
+  if (!state.currentSessionId) return;
+  const ok = confirm("Delete this session?");
+  if (!ok) return;
+  await apiDelete(`/api/sessions/${state.currentSessionId}`);
+  state.currentSessionId = null;
+  clearUI();
+  await refreshSessions();
+}
+
+async function exportSession() {
+  if (!state.currentSessionId) return;
+  const url = `/api/sessions/${state.currentSessionId}/export.md`;
+  const r = await fetch(url);
+  if (!r.ok) {
+    alert("Export failed");
+    return;
+  }
+  const text = await r.text();
+  const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `snlite_${state.currentSessionId}.md`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function openSession(sessionId) {
+  const sess = await apiGet(`/api/sessions/${sessionId}`);
+  clearUI();
+  for (const m of sess.messages) {
+    if (m.role === "user") {
+      const msg = createMessageRow("user");
+      setMessageContent(msg.contentEl, m.content);
+    } else if (m.role === "assistant") {
+      const msg = createMessageRow("assistant");
+      setMessageContent(msg.contentEl, m.content);
+    }
+  }
+  maybeAutoScroll(true);
+}
+
+async function stopStreaming() {
+  if (!state.requestId) return;
+  await apiPost("/api/chat/stop", { request_id: state.requestId });
+}
+
+async function maybeAutoTitle(sessionId) {
+  try {
+    const sess = await apiGet(`/api/sessions/${sessionId}`);
+    if (!(sess.title === "New Chat" || (sess.title || "").startsWith("New Chat"))) return;
+    const hasUser = (sess.messages || []).some(m => m.role === "user" && (m.content || "").trim().length > 0);
+    if (!hasUser) return;
+    await apiPost(`/api/sessions/${sessionId}/auto_title`, {});
+  } catch (e) {
+    console.warn("auto_title failed:", e);
+  }
+}
+
+/* ---------- Image attach ---------- */
+function clearAttachedImage() {
+  attachedImage.name = null;
+  attachedImage.b64 = null;
+  $("imageInfo").style.display = "none";
+  $("btnRemoveImage").style.display = "none";
+  $("imageName").textContent = "";
+  $("imagePreview").src = "";
+  $("imageFile").value = "";
+}
+
+function setAttachedImage(name, dataUrl) {
+  const comma = dataUrl.indexOf(",");
+  const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+  attachedImage.name = name;
+  attachedImage.b64 = b64;
+
+  $("imageInfo").style.display = "flex";
+  $("btnRemoveImage").style.display = "inline-flex";
+  $("imageName").textContent = name || "image";
+  $("imagePreview").src = dataUrl;
+}
+
+/* ---------- File attach (v0.5.0) ---------- */
+function humanSize(bytes) {
+  const b = Number(bytes || 0);
+  if (b < 1024) return `${b} B`;
+  const kb = b / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(2)} MB`;
+}
+
+function renderFileList() {
+  const box = $("fileList");
+  if (!attachedFiles.length) {
+    box.style.display = "none";
+    box.innerHTML = "";
+    return;
+  }
+  box.style.display = "flex";
+  box.innerHTML = "";
+
+  attachedFiles.forEach((f, idx) => {
+    const item = document.createElement("div");
+    item.className = "file-item";
+
+    const meta = document.createElement("div");
+    meta.className = "file-meta";
+
+    const name = document.createElement("div");
+    name.className = "file-name";
+    name.textContent = f.name;
+
+    const sub = document.createElement("div");
+    sub.className = "file-sub";
+    sub.textContent = `${f.mime || "unknown"} · ${humanSize(f.size)}`;
+
+    meta.appendChild(name);
+    meta.appendChild(sub);
+
+    const btn = document.createElement("button");
+    btn.className = "file-remove";
+    btn.textContent = "Remove";
+    btn.onclick = () => {
+      attachedFiles.splice(idx, 1);
+      renderFileList();
+    };
+
+    item.appendChild(meta);
+    item.appendChild(btn);
+    box.appendChild(item);
+  });
+}
+
+function clearAttachedFiles() {
+  attachedFiles = [];
+  $("docFiles").value = "";
+  renderFileList();
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const dataUrl = r.result;
+      const comma = dataUrl.indexOf(",");
+      const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+      resolve(b64);
+    };
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+/* ---------- Send ---------- */
+async function send() {
+  if (state.streaming) return;
+  if (!state.currentSessionId) await newSession();
+  if (!state.loaded) {
+    alert("Please load a model first.");
+    return;
+  }
+
+  const input = $("input");
+  const text = input.value.trim();
+
+  if (!text && !attachedImage.b64 && attachedFiles.length === 0) return;
+
+  // show user bubble (with markers)
+  let userDisplay = text;
+  if (attachedImage.b64) {
+    const marker = attachedImage.name ? `[Image] ${attachedImage.name}` : "[Image]";
+    userDisplay = userDisplay ? `${marker}\n${userDisplay}` : marker;
+  }
+  if (attachedFiles.length) {
+    const fileMarkers = attachedFiles.map(f => `[File] ${f.name} (${humanSize(f.size)})`).join("\n");
+    userDisplay = userDisplay ? `${fileMarkers}\n${userDisplay}` : fileMarkers;
+  }
+
+  const userMsg = createMessageRow("user");
+  setMessageContent(userMsg.contentEl, userDisplay);
+
+  input.value = "";
+
+  const assistantMsg = createMessageRow("assistant");
+  setMessageContent(assistantMsg.contentEl, "");
+
+  state.streaming = true;
+  $("btnSend").disabled = true;
+  $("btnStop").disabled = false;
+
+  const showTrace = $("showTrace").checked;
+  wsShow(showTrace);
+  if (showTrace) wsClear();
+
+  setStage("Answering…");
+
+  const thinkMode = $("thinkMode").value;
+
+  const filesPayload = attachedFiles.map(f => ({
+    name: f.name,
+    mime: f.mime,
+    b64: f.b64,
+  }));
+
+  const body = {
+    session_id: state.currentSessionId,
+    user_text: text,
+    system_text: $("systemText").value || "",
+    params: paramsFromUI(),
+    think_mode: thinkMode,
+    show_trace: showTrace,
+    images_b64: attachedImage.b64 ? [attachedImage.b64] : [],
+    image_name: attachedImage.name || "",
+    files: filesPayload,
+  };
+
+  // one-shot attachments
+  clearAttachedImage();
+  clearAttachedFiles();
+
+  const resp = await fetch("/api/chat/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    state.streaming = false;
+    $("btnSend").disabled = false;
+    $("btnStop").disabled = true;
+    setStage("Idle");
+    setMessageContent(assistantMsg.contentEl, `Error: ${await resp.text()}`);
+    return;
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+
+  let assistantRaw = "";
+
+  // During streaming: if user is near bottom at start, keep autoscroll
+  updateUserScrolledFlag();
+  if (!userScrolledUp) maybeAutoScroll(true);
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      let idx;
+      while ((idx = buffer.indexOf("\n\n")) !== -1) {
+        const frame = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+
+        const lines = frame.split("\n").map(l => l.trimEnd());
+        let eventType = "message";
+        let dataLine = null;
+
+        for (const l of lines) {
+          if (l.startsWith("event:")) eventType = l.slice(6).trim();
+          if (l.startsWith("data:")) dataLine = l.slice(5).trim();
+        }
+        if (!dataLine) continue;
+
+        if (eventType === "meta") {
+          try { state.requestId = JSON.parse(dataLine).request_id; } catch {}
+          continue;
+        }
+
+        if (eventType === "status") {
+          try {
+            const s = JSON.parse(dataLine);
+            if (s.stage === "thinking") setStage("Thinking…");
+            if (s.stage === "answering") setStage("Answering…");
+          } catch {}
+          continue;
+        }
+
+        if (eventType === "thinking") {
+          if (!$("showTrace").checked) continue;
+          try {
+            const obj = JSON.parse(dataLine);
+            if (obj.token) {
+              $("wsText").textContent += obj.token;
+              $("wsText").scrollTop = $("wsText").scrollHeight;
+            }
+          } catch {}
+          continue;
+        }
+
+        if (eventType === "content") {
+          try {
+            const obj = JSON.parse(dataLine);
+            if (obj.token) {
+              assistantRaw += obj.token;
+              setMessageContent(assistantMsg.contentEl, assistantRaw);
+              maybeAutoScroll(false);
+            }
+          } catch {}
+          continue;
+        }
+
+        if (eventType === "error") {
+          assistantRaw += `\n[Error] ${dataLine}`;
+          setMessageContent(assistantMsg.contentEl, assistantRaw);
+          maybeAutoScroll(false);
+          continue;
+        }
+
+        if (eventType === "done") {
+          setStage("Idle");
+          maybeAutoScroll(false);
+          continue;
+        }
+      }
+    }
+  } finally {
+    state.streaming = false;
+    $("btnSend").disabled = false;
+    $("btnStop").disabled = true;
+    state.requestId = null;
+    setStage("Idle");
+
+    await maybeAutoTitle(state.currentSessionId);
+    await refreshSessions();
+
+    // When done, snap to bottom only if user didn't scroll up
+    maybeAutoScroll(false);
+  }
+}
+
+/* ---------- Init ---------- */
+async function init() {
+  $("btnRefresh").onclick = refreshModels;
+  $("btnLoad").onclick = loadModel;
+  $("btnUnload").onclick = unloadModel;
+
+  $("providerSelect").onchange = async (e) => {
+    await refreshModelListForProvider(e.target.value);
+  };
+
+  $("modelSelect").onchange = () => syncThinkModeOptions();
+
+  $("btnNewSession").onclick = newSession;
+  $("btnRenameSession").onclick = renameSession;
+  $("btnDeleteSession").onclick = deleteSession;
+  $("btnExport").onclick = exportSession;
+
+  $("btnSend").onclick = send;
+  $("btnStop").onclick = stopStreaming;
+  $("btnClear").onclick = clearUI;
+
+  $("temperature").oninput = updateParamLabels;
+  $("top_p").oninput = updateParamLabels;
+  updateParamLabels();
+
+  $("input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      send();
+    }
+  });
+
+  // chat scroll listener (auto-scroll pause detection)
+  $("chatScroll").addEventListener("scroll", () => {
+    updateUserScrolledFlag();
+  });
+
+  // workspace controls
+  $("btnWsClear").onclick = wsClear;
+  $("btnWsHide").onclick = () => {
+    $("showTrace").checked = false;
+    wsShow(false);
+  };
+  $("showTrace").onchange = () => wsShow($("showTrace").checked);
+
+  // auto-scroll toggle
+  $("autoScroll").onchange = () => {
+    // if turning on, snap to bottom
+    if ($("autoScroll").checked) {
+      userScrolledUp = false;
+      maybeAutoScroll(true);
+    }
+  };
+
+  // Image attach
+  $("btnAttach").onclick = () => $("imageFile").click();
+  $("btnRemoveImage").onclick = clearAttachedImage;
+  $("imageFile").addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please choose an image file.");
+      clearAttachedImage();
+      return;
+    }
+    if (file.size > 6 * 1024 * 1024) {
+      alert("Image too large. Please use <= 6MB.");
+      clearAttachedImage();
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setAttachedImage(file.name, reader.result);
+    reader.readAsDataURL(file);
+  });
+
+  // Files attach (v0.5.0)
+  $("btnAttachFiles").onclick = () => $("docFiles").click();
+  $("docFiles").addEventListener("change", async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    // cap to MAX_FILES total
+    const MAX_FILES = 3;
+    const MAX_BYTES = 6 * 1024 * 1024;
+
+    for (const f of files) {
+      if (attachedFiles.length >= MAX_FILES) {
+        alert(`Max ${MAX_FILES} files allowed.`);
+        break;
+      }
+      if (f.size > MAX_BYTES) {
+        alert(`File too large (max 6MB): ${f.name}`);
+        continue;
+      }
+
+      const b64 = await readFileAsBase64(f);
+      attachedFiles.push({
+        name: f.name,
+        mime: f.type || "",
+        size: f.size,
+        b64,
+      });
+    }
+
+    renderFileList();
+    // reset input so selecting same file again triggers change
+    $("docFiles").value = "";
+  });
+
+  wsShow(false);
+  clearAttachedImage();
+  clearAttachedFiles();
+
+  setStage("Idle");
+  await refreshModels();
+  await refreshSessions();
+
+  // initial scroll state
+  userScrolledUp = false;
+  maybeAutoScroll(true);
+}
+
+init().catch(err => {
+  console.error(err);
+  setModelStatus("Init error: " + err.message);
+  setStage("Idle");
+});
