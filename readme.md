@@ -488,22 +488,6 @@ snlite/
 
 
 
----
-
-
-
-\## License
-
-
-
-Recommended: MIT (add `LICENSE` if you plan to share / fork / release).
-
-If you haven’t added one yet, do it before sharing publicly.
-
-
-
----
-
 
 
 \# CHANGELOG
