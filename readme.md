@@ -41,7 +41,7 @@ ollama list
 ## 安装
 
 ```bash
-git clone <your-repo-url>
+git clone (https://github.com/Yaoaoin/snlite-)
 cd snlite-
 pip install -e .
 ```
