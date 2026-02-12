@@ -1,1 +1,1 @@
-"""Built-in plugin modules for SNLite."""
+"""Built-in plugin modules for SnliteYao."""
