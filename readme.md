@@ -11,7 +11,7 @@
 
 - 项目名称统一升级为 **SnliteYao**
 - 安装后的项目名更新为 **snliteyao**
-- 启动命令更新为：`SnliteYao`
+- 启动命令更新为：`SNLYao`
 - UI 全面视觉升级（Aurora 背景、玻璃拟态卡片、渐变高亮按钮）
 - 保留原有核心能力：
   - Ollama 模型加载 / 卸载
@@ -49,7 +49,7 @@ pip install -e .
 安装后命令：
 
 ```bash
-SnliteYao
+SNLYao
 ```
 
 浏览器打开：
@@ -84,7 +84,7 @@ OLLAMA_BASE_URL=http://127.0.0.1:11434
 #### Changed
 
 - Rename: SNLite → SnliteYao（项目名、页面名、CLI 文案统一）
-- CLI command: `snlite` → `SnliteYao`
+- CLI command: `snlite` → `SNLYao`
 - Package version: `7.1.1` → `1.1.0`
 
 #### Improved

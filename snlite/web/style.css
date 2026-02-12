@@ -871,6 +871,122 @@ button.ghost:hover{
   left: var(--arrow-x, 16px);
 }
 
+
+
+/* -------- Hyper neon upgrade -------- */
+body{
+  background-attachment: fixed;
+}
+
+body::before,
+body::after{
+  animation-timing-function: cubic-bezier(.36,.07,.19,.97);
+}
+
+.app::before{
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(35% 30% at 12% 18%, rgba(77,243,255,0.18), transparent 70%),
+    radial-gradient(32% 36% at 88% 22%, rgba(155,123,255,0.22), transparent 72%),
+    radial-gradient(42% 38% at 50% 95%, rgba(95,168,255,0.12), transparent 75%);
+  mix-blend-mode: screen;
+  opacity: .85;
+  z-index: -1;
+  animation: pulseNebula 8s ease-in-out infinite alternate;
+}
+
+@keyframes pulseNebula{
+  from{ filter: saturate(105%) hue-rotate(0deg); transform: scale(1); }
+  to{ filter: saturate(130%) hue-rotate(18deg); transform: scale(1.02); }
+}
+
+.brand{
+  position: relative;
+  overflow: hidden;
+}
+
+.brand::after{
+  content: "";
+  position: absolute;
+  inset: -40% -120% auto;
+  height: 70%;
+  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,0.34) 50%, transparent 80%);
+  transform: translateX(-42%) rotate(4deg);
+  animation: brandSweep 5s linear infinite;
+}
+
+@keyframes brandSweep{
+  to{ transform: translateX(56%) rotate(4deg); }
+}
+
+.logo{
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.15) inset,
+              0 0 24px rgba(95,168,255,0.35),
+              0 0 40px rgba(155,123,255,0.35);
+  animation: logoBreath 3s ease-in-out infinite;
+}
+
+@keyframes logoBreath{
+  0%,100%{ transform: translateY(0) scale(1); }
+  50%{ transform: translateY(-1px) scale(1.04); }
+}
+
+.panel,
+.system-card,
+.composer,
+.workspace,
+.topbar{
+  backdrop-filter: blur(14px) saturate(145%);
+}
+
+button.primary{
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+button.primary::after{
+  content: "";
+  position: absolute;
+  inset: -130% -35%;
+  background: conic-gradient(from 180deg at 50% 50%, rgba(77,243,255,0) 0deg, rgba(77,243,255,0.32) 90deg, rgba(155,123,255,0.34) 190deg, rgba(77,243,255,0) 360deg);
+  animation: btnSpin 3.6s linear infinite;
+  z-index: -1;
+  opacity: .95;
+}
+
+@keyframes btnSpin{ to{ transform: rotate(1turn); } }
+
+.session-item.active,
+.archive-item.active,
+.bubble.search-active{
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset,
+              0 0 22px rgba(95,168,255,0.28),
+              0 0 36px rgba(155,123,255,0.22);
+}
+
+.bubble.ai{
+  position: relative;
+}
+
+.bubble.ai::before{
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(120deg, rgba(95,168,255,0.24), rgba(155,123,255,0.2), rgba(77,243,255,0.18));
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  padding: 1px;
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  opacity: .65;
+}
+
 /* -------- Responsive -------- */
 @media (max-width: 1180px){
   .app{ grid-template-columns: 320px 1fr; }
