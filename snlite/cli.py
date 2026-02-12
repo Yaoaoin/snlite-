@@ -13,9 +13,9 @@ def run():
 
     handle = ensure_ollama_running(handle)
     if handle.started_by_snlite:
-        print("[SNLite] Ollama was not running. Started `ollama serve` automatically.")
+        print("[SnliteYao] Ollama was not running. Started `ollama serve` automatically.")
     else:
-        print("[SNLite] Ollama already running. Using existing instance.")
+        print("[SnliteYao] Ollama already running. Using existing instance.")
 
     from snlite import main as m
 
@@ -35,4 +35,4 @@ def run():
     finally:
         stop_ollama(handle)
         if handle.started_by_snlite:
-            print("[SNLite] Stopped Ollama (started by SNLite).")
+            print("[SnliteYao] Stopped Ollama (started by SnliteYao).")

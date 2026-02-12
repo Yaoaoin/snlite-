@@ -1,53 +1,36 @@
-# SNLite
+# SnliteYao
 
-**SNLite** is a lightweight, local-first GenAI chat UI built on top of **Ollama**.  
-It runs entirely on `localhost`, focuses on clarity and hackability, and exposes advanced features like **native thinking traces**, **image input**, and **document-assisted chat** without becoming bloated.
+**SnliteYao 1.1.0** 是从原 Snlite fork 出来的独立版本（基于 Snlite 7.1.1），定位为更炫酷、更顺手的本地化 GenAI 聊天框架。  
+依然坚持：**本地优先、轻量可改、无云锁定**。
 
-> Minimal UI · Streaming · Local only · No cloud lock-in
-
----
-
-## Features
-
-- **Language switch + locale plugin support (v7.1.1)**
-  - Switch whole UI between Chinese/English
-  - Extensible locale plugins via Python entry points (`snlite.locales`)
-
-- **Ollama native thinking support**
-  - Separates `thinking` and final answer
-  - Optional right-side workspace for trace inspection
-- **Streaming chat UI**
-  - Token-by-token output
-  - Auto-scroll during generation (pauses when you scroll up)
-- **Image input**
-  - For multimodal models (e.g. LLaVA, Qwen-VL)
-- **File attachments**
-  - PDF / DOCX / TXT / MD
-  - Text is extracted and injected into the prompt (no binary storage)
-- **Sessions with auto titles**
-  - First user message → automatic chat title
-  - Archive chat or hard-delete chat directly from sidebar
-- **Archive management**
-  - Browse archived chat snapshots
-  - Delete unnecessary archives directly in UI
-- **Lightweight & hackable**
-  - No frontend framework
-  - Plain FastAPI + vanilla JS
-- **Provider plugin support (v7.0.0)**
-  - Auto-discover providers from Python entry points (`snlite.providers`)
-  - Supports third-party provider packages
-  - Includes built-in `echo` example plugin
+> Local only · Streaming · Thinking trace · Multimodal · Cooler UI
 
 ---
 
-## Requirements
+## 1.1.0 版本亮点
+
+- 项目名称统一升级为 **SnliteYao**
+- 安装后的项目名更新为 **snliteyao**
+- 启动命令更新为：`SnliteYao`
+- UI 全面视觉升级（Aurora 背景、玻璃拟态卡片、渐变高亮按钮）
+- 保留原有核心能力：
+  - Ollama 模型加载 / 卸载
+  - 流式输出
+  - Thinking trace 工作区
+  - 图片输入
+  - 文档注入（PDF/DOCX/TXT/MD）
+  - 会话与归档管理
+  - 中英双语与 locale 插件
+
+---
+
+## 环境要求
 
 - Python **3.10+**
-  https://www.python.org
-- **Ollama** installed and running  
-  https://ollama.com
+- 已安装并运行 **Ollama**
 
-Check:
+检查：
+
 ```bash
 ollama --version
 ollama list
@@ -55,35 +38,28 @@ ollama list
 
 ---
 
-## Install
+## 安装
 
 ```bash
-git clone https://github.com/AyUkI-AYANO/snlite
-cd snlite
-pip install -e .
-```
-or:
-
-Download from releases
-
-open console at root folder of release
-
-```bash
+git clone <your-repo-url>
+cd snlite-
 pip install -e .
 ```
 
----
-
-## run
+安装后命令：
 
 ```bash
-snlite
+SnliteYao
 ```
 
-Open on browser:
+浏览器打开：
+
+```text
 127.0.0.1:8000
+```
 
-Environment variables (optional):
+可选环境变量：
+
 ```bash
 SNLITE_HOST=127.0.0.1
 SNLITE_PORT=8000
@@ -92,260 +68,33 @@ OLLAMA_BASE_URL=http://127.0.0.1:11434
 
 ---
 
-### Usage Notes
+## 快速说明
 
-Models
-
-Load models from the sidebar (via Ollama).
-
-Image input requires multimodal models.
-
-Thinking trace requires thinking-capable models (e.g. Qwen 3, DeepSeek R1, GPT-OSS).
-
-Thinking Mode
-
-auto – use model default
-
-on / off – boolean (most models)
-
-low / medium / high – GPT-OSS only
-
-Thinking trace is never written to session history.
-
-File Attachments
-
-Max 3 files, each ≤ 6MB
-
-Extracted text is truncated and injected into the current prompt
-
-Scanned PDFs (image-only) are not OCR’d in v0.5.0
+- **模型**：左侧选择 Provider 与 Model 后点击 Load
+- **Thinking**：可选择 auto/on/off/low/medium/high
+- **附件**：支持最多 3 个文件，每个不超过 6MB
+- **导出**：支持导出单会话 `.md/.json` 与全量备份 `.json`
 
 ---
 
-### Export
+## 版本记录
 
-Export any session as Markdown (.md)
+### v1.1.0
 
----
+#### Changed
 
-### Project Structure
+- Rename: SNLite → SnliteYao（项目名、页面名、CLI 文案统一）
+- CLI command: `snlite` → `SnliteYao`
+- Package version: `7.1.1` → `1.1.0`
 
-```bash
-snlite/
-├─ snlite/
-│  ├─ main.py
-│  ├─ web/
-│  │  ├─ index.html
-│  │  ├─ style.css
-│  │  └─ app.js
-│  ├─ providers/
-│  │  └─ ollama.py
-│  ├─ store.py
-│  └─ registry.py
-├─ pyproject.toml
-└─ README.md
-```
+#### Improved
 
----
+- UI 视觉升级：
+  - 更强的多层渐变背景
+  - 动态 Aurora 光晕效果
+  - 更明显的玻璃卡片层次
+  - 更具冲击力的主按钮发光反馈
 
-### Changelog
+### Base
 
-v7.1.1
-
-Fixed
-
-- Fixed tile meta badge wrapping issue where Chinese "次要" could render vertically in narrow badge chips
-
-Added
-
-- Added in-app language selector (Chinese / English)
-- Added locale plugin support via Python entry points (`snlite.locales`)
-- Added locale diagnostics API: `/api/i18n/locales`
-- Added locale plugin development guide: `docs/locale-plugin-guide.md`
-
-v7.1.0
-
-Added
-
-- Sidebar now uses **collapsible tile cards** to reduce visual clutter while keeping quick access to key actions
-- Tile expand/collapse state is persisted in local storage for each user
-
-Improved
-
-- Important controls (Model / Sessions / Params) are expanded by default
-- Secondary controls (Archives / Thinking / UI) are collapsed by default for a shorter sidebar
-
-v7.0.2
-
-Added
-
-- New **Delete** button for sessions to permanently remove chats without creating an archive
-- New **Delete archive** button to remove unnecessary archived files
-
-Improved
-
-- Session actions now separate archive flow and permanent delete flow to reduce accidental operations
-
-v7.0.1
-
-Added
-
-- Archive
-
-- Chat Folders
-
-v7.0.0
-
-Added
-
-- Provider plugin system based on Python entry points (`snlite.providers`)
-- Built-in example provider plugin: `echo`
-- Plugin diagnostics endpoint: `/api/plugins/providers`
-- Provider plugin development guide: `docs/provider-plugin-guide.md`
-
-v6.1.2
-
-Fixed
-
-- Unified search input styles with the dark UI theme (chat search + session search), including border, background and placeholder colors.
-
-Improved
-
-- Harmonized topbar control heights and spacing for better visual rhythm.
-- Refined chat-search capsule styling and match counter readability.
-
-v6.1.0
-
-Added
-
-- Session maintenance tools: export all sessions backup, import sessions (append/replace), and JSONL compaction
-- File extraction inspection API + UI action to preview parse status/char counts before sending
-
-Improved
-
-- Attachment workflow now clears stale inspection results when file list changes
-- Frontend session tools for local backup/migration without leaving the app
-
-v6.0.2
-
-Added
-
-- Regenerate now supports retry mode: keep context or clean context
-- Streaming done payload now includes finish reason (`completed` / `cancelled` / `interrupted` / `failed`)
-
-Improved
-
-- Assistant message metadata now shows explicit generation result state
-
-v6.0.1
-
-Added
-
-- Session list search and in-chat keyword navigation
-- Session export to JSON (.json)
-- Attachment enable/disable toggle and injection stats
-- Better streaming completion metadata (elapsed/output chars)
-
-Improved
-
-- Stop generation now marks message as cancelled
-- Retry flow and error recovery UX polish
-
-v6.0.0
-
-Change
-
-- UI Major rework
-
-- early works done for 6.0.1 & 6.0.2
-
-v0.5.3(.1)
-
-Fixed
-
-- High DRAM usage of Ollama
-
-Add
-
-- Automatic Ollama starter & terminator
-
-v0.5.2
-
-Fixed
-
-- Tooltip overflow issue in sidebar and narrow layouts
-
-- Help popups no longer exceed viewport boundaries
-
-- Tooltips remain readable on small screens
-
-Improved
-
-- Tooltip positioning is now viewport-safe
-
-- Long help texts automatically wrap instead of overflowing
-
-v0.5.1
-
-Added
-
-- One-click copy for assistant messages
-  
-  - Copy button available on each assistant message
-    
-  - Copies the original Markdown text (not rendered HTML)
-    
-  - Also supports “Copy last assistant message” from the top toolbar
-
-- Regenerate last response
-  
-  - Re-run generation for the latest assistant message
-    
-  - Automatically removes the previous response and replaces it with a new one
-    
-  - Preserves:
-    - system prompt
-    - model parameters
-    - extracted file context (PDF / DOCX / TXT / MD)
-      
-  - Gracefully rejects regeneration for image-based messages (image binaries are not stored)
-
-v0.5.0
-
-Auto-scroll during streaming (smart pause on manual scroll)
-
-Clear visual separation between user / assistant messages
-
-File attachments (PDF / DOCX / TXT / MD)
-
-Improved long-content readability
-
-v0.4.x
-
-Native Ollama thinking trace support
-
-Dedicated thinking workspace
-
-Image input support
-
-Markdown rendering fixes
-
-v0.3.x
-
-Per-setting explanations (tooltips)
-
-Auto chat title generation
-
-v0.2.x
-
-UI refinements
-
-Initial “deep thinking” concept
-
-v0.1.0
-
-Initial local chat UI
-
-Model loading + basic conversation
-
----
+- Forked from Snlite 7.1.1

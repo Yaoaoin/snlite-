@@ -1,4 +1,4 @@
-/* SNLite web app (v7.1.1)
+/* SnliteYao web app (v1.1.0)
    Vanilla JS only, local-first UI.
 */
 
@@ -22,7 +22,7 @@ let attachedFiles = []; // {name, mime, size, b64}
 const FILE_MAX_BYTES = 6 * 1024 * 1024;
 const FILE_MAX_COUNT = 3;
 
-const I18N_KEY = "snlite.ui.lang.v1";
+const I18N_KEY = "snliteyao.ui.lang.v1";
 const i18nState = {
   current: "zh-CN",
   fallback: "en",
@@ -286,7 +286,7 @@ function positionTooltip(tipEl, targetEl, text) {
 
 
 function installSidebarTiles() {
-  const KEY = "snlite.sidebar.tiles.v1";
+  const KEY = "snliteyao.sidebar.tiles.v1";
   const tiles = Array.from(document.querySelectorAll(".tile[data-tile]"));
   if (!tiles.length) return;
 
@@ -1028,7 +1028,7 @@ async function exportSession() {
   const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `snlite_${state.currentSessionId}.md`;
+  a.download = `snliteyao_${state.currentSessionId}.md`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -1046,7 +1046,7 @@ async function exportSessionJson() {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `snlite_${state.currentSessionId}.json`;
+  a.download = `snliteyao_${state.currentSessionId}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -1062,7 +1062,7 @@ async function exportAllSessions() {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `snlite_backup_${ts}.json`;
+  a.download = `snliteyao_backup_${ts}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
 }

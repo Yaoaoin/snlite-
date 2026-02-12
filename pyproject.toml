@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "snlite"
-version = "7.1.1"
-description = "SNLite - lightweight local GenAI chat framework with browser GUI"
+name = "snliteyao"
+version = "1.1.0"
+description = "SnliteYao - standalone local GenAI chat framework with browser GUI"
 requires-python = ">=3.10"
 dependencies = [
   "fastapi>=0.110",
@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-snlite = "snlite.cli:run"
+SnliteYao = "snlite.cli:run"
 
 [project.entry-points."snlite.providers"]
 echo = "snlite.plugins.example_provider:plugin_entry"
