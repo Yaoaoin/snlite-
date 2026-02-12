@@ -1,5 +1,5 @@
 [console_scripts]
-snlite = snlite.cli:run
+SNLYao = snlite.cli:run
 
 [snlite.locales]
 example_ja = snlite.plugins.example_locale:plugin_entry
